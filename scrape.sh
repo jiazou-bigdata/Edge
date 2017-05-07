@@ -32,7 +32,7 @@ get_files() {
 	cd $dirr
 	rm -fr tmp/curr	
 	cd tmp
-	blue "[*] Cloning $name..."
+	blue "[$name] Cloning repository..."
 	git clone https://github.com/$name curr &>/dev/null
 	# If this fail then skip all the next stuff
 	if [ $? = 0 ]; then
@@ -106,6 +106,33 @@ get_files() {
     done
     cd $dirr
     rm -fr tmp/curr	
+    echo "[*] Found $(ls $dirr/found | wc -w) files"
+}
+
+parse_files() {
+    [ ! -d $dirr/found ] && return 1
+    [ ! -d $dirr/fixed ] && mkdir $dirr/fixed
+    green '[+] Parsing files'
+    cd $dirr/found
+    files=$(find ./ -type f)
+    for f in $files; do
+	up 1
+	green "[$f] Parsed"
+	if [ "$(grep 'BEGIN.*END' $f )" = "" ]; then
+	    cat $f | sed '/BEGIN/,/END/!d'  > ../fixed/$f
+	else
+	    printf "$(cat $f)" | sed -e '/BEGIN/,/END/!d' > ../fixed/$f
+	fi
+	begin_string='/BEGIN/ s:^.*\(-----BEGIN.*\)$:\1:'
+	end_string='s:^\(.*KEY-----\).*$:\1:'
+	sed -i "$begin_string; $end_string" ../fixed/$f
+	echo >> ../fixed/$f
+	cat ../fixed/$f | grep -v ^$ > ../fixed/${f}.2
+	[ $? = 0 ] && [ -f ../fixed/${f}.2 ] && mv ../fixed/${f}.2 ../fixed/$f
+	#cat $f
+    done
+    up 1
+    echo "[+] Files Parsed"
 }
 
 init() {
@@ -113,9 +140,13 @@ init() {
     # Create the temp directory if it doesnt exist
     [ ! -d "tmp" ] && mkdir tmp
 }
+
 dirr=$PWD
+if [ "$1" != "" ]; then
 init
 get_commits
 get_files
+cd $dirr
+fi
+parse_files
 
-echo "[*] Found $(ls $dirr/found | wc -w) files"
