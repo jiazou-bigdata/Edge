@@ -24,6 +24,13 @@ search_term="removed+private+key"
 get_commits() {
     echo "[*] Searching $pages pages..."
     RES=search_results.txt
+    if [ -f $RES ]; then 
+	[ ! -d stash ] && mkdir stash
+	num=$(ls stash | cut -d'-' -f1 | sort -n | tail -n 1)
+	fff="stash/$(($num +1))-$RES"
+	mv $RES "stash/$(($num +1))-$RES"
+	[ $? = 0 ] && up 1 && green "[+] Backed up $RES to $fff" && echo
+    fi
     echo > $RES
     [ $? != 0 ] && red "[!] Error creating $RES" && exit
     count=0
@@ -44,7 +51,7 @@ get_commits() {
     done
     grep -v ^$ $RES | uniq > ${RES}.2
     [ $? = 0 ] && mv ${RES}.2 $RES
-    up 1
+    up $(($count+1))
     echo "[+] Found" $(wc -l $RES | cut -d' ' -f1) "project(s)"
 }
 
@@ -111,7 +118,7 @@ get_files() {
 		    # Make the output fold and make the filename
 		    mkdir -p $dirr/found
 		    fil=$(echo $f | sed 's=.*/==' )
-		    output_folder="$dirr/found/$(echo $name| cut -d'/' -f2)-$fil"
+		    output_folder="$dirr/found/$(echo $name| cut -d'/' -f2)---$fil"
 		    # Save the file that has potential
 		    git show "$commit~1":$f > "$output_folder"
 		fi
@@ -142,7 +149,13 @@ get_files() {
 
 parse_files() {
     [ ! -d $dirr/found ] && return 1
-    [ ! -d $dirr/fixed ] && mkdir $dirr/fixed
+    DIR="keys"
+    [ ! -d $dirr/$DIR ] && mkdir $dirr/$DIR
+    if [ "`ls $dirr/fixed`" != "" ]; then
+	num=$(find $dirr/stash -type d | cut -d'-' -f1 | sort -n | tail -n 1)
+	mkdir -p "$dirr/stash/$(($num+1))-keys"
+	mv $dirr/$DIR/*  "$dirr/stash/$(($num+1))-keys"
+    fi
     green '[+] Parsing files'
     cd $dirr/found
     files=$(find ./ -type f)
@@ -151,20 +164,58 @@ parse_files() {
 	up 1
 	green "[$f] Parsed"
 	if [ "$(grep 'BEGIN.*END' $f )" = "" ]; then
-	    cat $f | sed '/BEGIN/,/END/!d'  > ../fixed/$f
+	    cat $f | sed '/BEGIN/,/END/!d'  > ../$DIR/$f
 	else
-	    printf "$(cat $f)" | sed -e '/BEGIN/,/END/!d' > ../fixed/$f
+	    printf "$(cat $f)" | sed -e '/BEGIN/,/END/!d' > ../$DIR/$f
 	fi
 	begin_string='/BEGIN/ s:^.*\(-----BEGIN.*\)$:\1:'
 	end_string='s:^\(.*KEY-----\).*$:\1:'
-	sed -i "$begin_string; $end_string" ../fixed/$f
-	echo >> ../fixed/$f
-	cat ../fixed/$f | grep -v ^$ > ../fixed/${f}.2
-	[ $? = 0 ] && [ -f ../fixed/${f}.2 ] && mv ../fixed/${f}.2 ../fixed/$f
+	sed -i "$begin_string; $end_string" ../$DIR/$f
+	echo >> ../$DIR/$f
+	cat ../$DIR/$f | grep -v ^$ > ../$DIR/${f}.2
+	[ $? = 0 ] && [ -f ../$DIR/${f}.2 ] && mv ../$DIR/${f}.2 ../$DIR/$f
 	count=$(($count +1))	
     done
     up 1
     echo "[+] $count Files Parsed"
+}
+
+parse() {
+    case "$1" in
+	parse|p )
+	parse_files
+	;;
+	extract|e )
+	get_files
+	;;
+	find|f )
+	read -p "how many pages to pull? " pages
+	get_commits
+	;;
+	all|a)
+	read -p "how many pages to pull? " pages
+	get_commits
+	get_files
+	cd $dirr
+	parse_files
+	;;
+	*)
+	echo -e 'USAGE: $0 command\n\nCOMMANDS:
+find
+    Search github for a list of commits and projects for potential private keys
+
+extract
+    clones the repositories and extracts private keys from the files flagged
+
+parse
+    parses the extracted files and outputs a list of clean keys in "./keys/"
+
+all
+    Runs all three commands
+'
+	exit
+	;;
+    esac
 }
 
 init() {
@@ -174,17 +225,5 @@ init() {
 }
 
 dirr=$PWD
-if [ "$1" != "" ]; then
-    pages=$2
-    if [ "$2" = "" ]; then
-	read -p "how many pages to pull? " pages
-    fi
-    
-    init
-    get_commits
-    exit
-    #get_files
-    cd $dirr
-fi
-parse_files
-
+init
+parse $1
