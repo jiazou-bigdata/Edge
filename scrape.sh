@@ -23,7 +23,6 @@ search_term="removed+private+key"
 
 get_commits() {
     echo "[*] Searching $pages pages..."
-    RES=search_results.txt
     if [ -f $RES ]; then 
 	[ ! -d stash ] && mkdir stash
 	num=$(ls stash | cut -d'-' -f1 | sort -n | tail -n 1)
@@ -56,10 +55,12 @@ get_commits() {
 }
 
 get_files() {
-    if [ $ -f $RES ]; then
+    if [ ! -f "$RES" ]; then
 	red "[!] $RES Does not exist!"
 	exit
     fi
+    # If the found dir doesnt exist, create it, else delete everything in it
+    [ -d $dirr/found ] && rm $dirr/found/* -fr || mkdir -p $dirr/found
     while read link; do
 	if [ "$link" == "" ]; then
 	    red "[!] Blank Line"
@@ -116,11 +117,10 @@ get_files() {
 		if [ "$(echo $change | grep 'PRIVATE KEY')" != "" ]; then
 		    good_files=$(($good_files +1))
 		    # Make the output fold and make the filename
-		    mkdir -p $dirr/found
 		    fil=$(echo $f | sed 's=.*/==' )
 		    output_folder="$dirr/found/$(echo $name| cut -d'/' -f2)---$fil"
 		    # Save the file that has potential
-		    git show "$commit~1":$f > "$output_folder"
+		    git show "$commit~1":$f > "$output_folder" &>/dev/null
 		fi
 	    else
 		:
@@ -151,7 +151,7 @@ parse_files() {
     [ ! -d $dirr/found ] && return 1
     DIR="keys"
     [ ! -d $dirr/$DIR ] && mkdir $dirr/$DIR
-    if [ "`ls $dirr/fixed`" != "" ]; then
+    if [ "`ls $dirr/$DIR`" != "" ]; then
 	num=$(find $dirr/stash -type d | cut -d'-' -f1 | sort -n | tail -n 1)
 	mkdir -p "$dirr/stash/$(($num+1))-keys"
 	mv $dirr/$DIR/*  "$dirr/stash/$(($num+1))-keys"
@@ -220,10 +220,11 @@ all
 
 init() {
     git config --global core.autocrlf false
+    RES=search_results.txt
+    dirr=$PWD
     # Create the temp directory if it doesnt exist
     [ ! -d "tmp" ] && mkdir tmp
 }
 
-dirr=$PWD
 init
 parse $1
