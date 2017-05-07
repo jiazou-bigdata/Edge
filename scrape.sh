@@ -9,6 +9,9 @@ blue() { CBLUE='\033[0;34m'; echo -e ${CBLUE}$@${NOCOLOR}; }
 green() { CGREEN='\033[0;32m'; echo -e ${CGREEN}$@${NOCOLOR}; }
 
 up() {
+    if [ "$1" = "0" ] || [ "$1" = "" ]; then 
+	return 0
+    fi
     printf "\033[$1A"
     for i in `seq $1`; do
 	echo -e "\033[K"
@@ -19,14 +22,42 @@ up() {
 search_term="removed+private+key"
 
 get_commits() {
-    search=$(curl -s "https://github.com/search?q=$search_term&type=Commits")
-    links=$(echo "$search" | grep "Browse the repository at this point in the history")
-    repos=$(echo "$links" | sed 's/.*href="\(.*\)" aria.*/\1/p' | uniq)
-    echo "[+] Found" $(echo "$repos" | wc -l) "project(s)"
+    echo "[*] Searching $pages pages..."
+    RES=search_results.txt
+    echo > $RES
+    [ $? != 0 ] && red "[!] Error creating $RES" && exit
+    count=0
+    for p in $(seq $pages); do
+	up $count
+	link="https://github.com/search?p=$p&q=$search_term&type=Commits"
+	up 1
+	blue "[$p/$pages] Getting Repositories $link"
+	search=$(curl -s "$link")
+	links=$(echo "$search" | grep "Browse the repository at this point in the history")
+	echo "$links" | sed 's/.*href="\(.*\)" aria.*/\1/p' | uniq >> $RES
+	repos=$(echo "$links" | sed 's/.*href="\(.*\)" aria.*/\1/p' | uniq)
+	up 1
+	count=$(echo "$repos" | wc -l)
+	green "[$p/$pages] Found $count repositories on page $p"
+	echo "$repos"
+	sleep 5
+    done
+    grep -v ^$ $RES | uniq > ${RES}.2
+    [ $? = 0 ] && mv ${RES}.2 $RES
+    up 1
+    echo "[+] Found" $(wc -l $RES | cut -d' ' -f1) "project(s)"
 }
 
 get_files() {
-    for link in $repos; do
+    if [ $ -f $RES ]; then
+	red "[!] $RES Does not exist!"
+	exit
+    fi
+    while read link; do
+	if [ "$link" == "" ]; then
+	    red "[!] Blank Line"
+	    continue
+	fi
 	name=$(echo $link | sed -ne 's:/\(.*\)/tree/.*:\1:p')
 	commit=$(echo $link | sed -n 's:.*tree/\(.*\):\1:p')
 	cd $dirr
@@ -73,7 +104,7 @@ get_files() {
 	    isascii="$(file $f | grep -e '(ASCII|TEXT'))"
 	    if [ "$isascii" != "" ]; then 
 		# Get the commit difference
-		change=$(git show "$commit~1":$f)
+		change=$(git show "$commit~1":$f) 2>/dev/null
 		# Check if this contains a key
 		if [ "$(echo $change | grep 'PRIVATE KEY')" != "" ]; then
 		    good_files=$(($good_files +1))
@@ -82,7 +113,7 @@ get_files() {
 		    fil=$(echo $f | sed 's=.*/==' )
 		    output_folder="$dirr/found/$(echo $name| cut -d'/' -f2)-$fil"
 		    # Save the file that has potential
-		    git show "$commit~1":$f >> "$output_folder"
+		    git show "$commit~1":$f > "$output_folder"
 		fi
 	    else
 		:
@@ -103,7 +134,7 @@ get_files() {
 	    red "[!] Error cloning $name"
 	fi
 	#echo [+] Done with $name
-    done
+    done < $RES
     cd $dirr
     rm -fr tmp/curr	
     echo "[*] Found $(ls $dirr/found | wc -w) files"
@@ -115,6 +146,7 @@ parse_files() {
     green '[+] Parsing files'
     cd $dirr/found
     files=$(find ./ -type f)
+    count=0
     for f in $files; do
 	up 1
 	green "[$f] Parsed"
@@ -129,10 +161,10 @@ parse_files() {
 	echo >> ../fixed/$f
 	cat ../fixed/$f | grep -v ^$ > ../fixed/${f}.2
 	[ $? = 0 ] && [ -f ../fixed/${f}.2 ] && mv ../fixed/${f}.2 ../fixed/$f
-	#cat $f
+	count=$(($count +1))	
     done
     up 1
-    echo "[+] Files Parsed"
+    echo "[+] $count Files Parsed"
 }
 
 init() {
@@ -143,10 +175,16 @@ init() {
 
 dirr=$PWD
 if [ "$1" != "" ]; then
-init
-get_commits
-get_files
-cd $dirr
+    pages=$2
+    if [ "$2" = "" ]; then
+	read -p "how many pages to pull? " pages
+    fi
+    
+    init
+    get_commits
+    exit
+    #get_files
+    cd $dirr
 fi
 parse_files
 
