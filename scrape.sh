@@ -112,7 +112,11 @@ get_files() {
 	    isascii="$(file $f | grep -e '(ASCII|TEXT'))"
 	    if [ "$isascii" != "" ]; then 
 		# Get the commit difference
-		change=$(git show "$commit~1":$f) 2>/dev/null
+		git show "$commit~1":$f &>/dev/null
+		[ $? != 0 ] && up 1 && red "[$name] Doesnt exist in $commit~1" \
+		&& echo && continue
+
+		change=$(git show "$commit~1":$f)
 		# Check if this contains a key
 		if [ "$(echo $change | grep 'PRIVATE KEY')" != "" ]; then
 		    good_files=$(($good_files +1))
@@ -120,7 +124,7 @@ get_files() {
 		    fil=$(echo $f | sed 's=.*/==' )
 		    output_folder="$dirr/found/$(echo $name| cut -d'/' -f2)---$fil"
 		    # Save the file that has potential
-		    git show "$commit~1":$f > "$output_folder" &>/dev/null
+		    git show "$commit~1":$f > "$output_folder" 
 		fi
 	    else
 		:
@@ -152,9 +156,11 @@ parse_files() {
     DIR="keys"
     [ ! -d $dirr/$DIR ] && mkdir $dirr/$DIR
     if [ "`ls $dirr/$DIR`" != "" ]; then
-	num=$(find $dirr/stash -type d | cut -d'-' -f1 | sort -n | tail -n 1)
-	mkdir -p "$dirr/stash/$(($num+1))-keys"
-	mv $dirr/$DIR/*  "$dirr/stash/$(($num+1))-keys"
+	num=$(find $dirr/stash/* -type d | sed 's:.*/\([^/]*\)$:\1:p' \
+	| cut -d'-' -f1 | sort -n | tail -n 1)
+	num=$(($num+1))
+	mkdir -p "$dirr/stash/$num-keys"
+	mv $dirr/$DIR/*  "$dirr/stash/$num-keys"
     fi
     green '[+] Parsing files'
     cd $dirr/found
