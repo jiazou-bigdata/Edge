@@ -117,8 +117,8 @@ get_files() {
 	    if [ "$isascii" != "" ]; then 
 		# Get the commit difference
 		git show "$commit~1":$f &>/dev/null
-		[ $? != 0 ] && up 1 && red "[$name] Doesnt exist in $commit~1" \
-		&& echo && continue
+		[ $? != 0 ] && up 1 && red "$B [$name] File doesn't exist in \
+		$commit~1"  && continue
 
 		change=$(git show "$commit~1":$f)
 		# Check if this contains a key
