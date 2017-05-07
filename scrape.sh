@@ -200,7 +200,7 @@ parse() {
 	parse_files
 	;;
 	*)
-	echo -e 'USAGE: $0 command\n\nCOMMANDS:
+	echo -e "USAGE: $0 <command>\n\nCOMMANDS:
 find
     Search github for a list of commits and projects for potential private keys
 
@@ -208,11 +208,11 @@ extract
     clones the repositories and extracts private keys from the files flagged
 
 parse
-    parses the extracted files and outputs a list of clean keys in "./keys/"
+    parses the extracted files and outputs a list of clean keys in \"./keys/\"
 
 all
     Runs all three commands
-'
+"
 	exit
 	;;
     esac
