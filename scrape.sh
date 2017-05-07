@@ -59,6 +59,8 @@ get_files() {
 	red "[!] $RES Does not exist!"
 	exit
     fi
+    MAX=$(cat $RES | wc -l)
+    CUR=1
     # If the found dir doesnt exist, create it, else delete everything in it
     [ -d $dirr/found ] && rm $dirr/found/* -fr || mkdir -p $dirr/found
     while read link; do
@@ -66,12 +68,14 @@ get_files() {
 	    red "[!] Blank Line"
 	    continue
 	fi
+	B="[$CUR/$MAX]"
+	CUR=$(($CUR + 1))
 	name=$(echo $link | sed -ne 's:/\(.*\)/tree/.*:\1:p')
 	commit=$(echo $link | sed -n 's:.*tree/\(.*\):\1:p')
 	cd $dirr
 	rm -fr tmp/curr	
 	cd tmp
-	blue "[$name] Cloning repository..."
+	blue "$B [$name] Cloning repository..."
 	git clone https://github.com/$name curr &>/dev/null
 	# If this fail then skip all the next stuff
 	if [ $? = 0 ]; then
@@ -82,13 +86,13 @@ get_files() {
 	retval=$?
 	if [ $retval != 0 ]; then
 	    up 1
-	    red "[$name] Error commit doesnt exist $commit~1"
+	    red "$B [$name] Error commit doesnt exist $commit~1"
 	    cd ../../
 	    rm -fr tmp/curr
 	    continue
 	else
 	    up 1
-	    green "[$name] Commit exists $commit~1"
+	    green "$B [$name] Commit exists $commit~1"
 	fi
 	
 	# Get the files that have changed
@@ -99,11 +103,11 @@ get_files() {
 	git checkout $commit~1 &>/dev/null
 	if [ $? != 0 ]; then
 	    up 1
-	    red "[$name] Error cannot checkout $commit~1"
+	    red "$B [$name] Error cannot checkout $commit~1"
 	    continue
 	else
 	    up 1
-	    green "[$name] Checked out $commit~1"
+	    green "$B [$name] Checked out $commit~1"
 	fi
 	
 	good_files=0
@@ -135,9 +139,9 @@ get_files() {
 	# Print the status
 	up 1
 	if [ $good_files != 0 ]; then
-	    green "[$name] $good_files/$num_fils files have potential"
+	    green "$B [$name] $good_files/$num_fils files have potential"
 	else
-	    echo "[$name] $good_files/$num_fils files have potential"
+	    echo "$B [$name] $good_files/$num_fils files have potential"
 	fi
 
 	else
